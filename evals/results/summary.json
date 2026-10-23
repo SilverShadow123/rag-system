@@ -1,0 +1,22 @@
+{
+  "total_cases": 10,
+  "successful_cases": 10,
+  "failed_cases": 0,
+  "top_k": 5,
+  "classical_metrics": {
+    "case_count": 10,
+    "precision_at_1": 0.1,
+    "recall_at_1": 0.1,
+    "hit_rate_at_1": 0.1,
+    "mrr_at_1": 0.1,
+    "precision_at_3": 0.03333333333333333,
+    "recall_at_3": 0.1,
+    "hit_rate_at_3": 0.1,
+    "mrr_at_3": 0.1,
+    "precision_at_5": 0.06000000000000001,
+    "recall_at_5": 0.2,
+    "hit_rate_at_5": 0.2,
+    "mrr_at_5": 0.12
+  },
+  "ragas_status": "success"
+}
