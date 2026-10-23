@@ -72,12 +72,3 @@ Complete this table after the first end-to-end RAG baseline works.
 - Treat small-sample scores as preliminary; manually inspect failures.
 - Report limitations and actual measurements honestly.
 
-## 7. Day 1 status
-
-- [x] Evaluation metrics selected.
-- [x] Benchmark design recorded.
-- [x] Baseline measurement procedure defined.
-- [ ] Benchmark questions created.
-- [ ] Baseline metrics measured after the RAG pipeline is implemented.
-
-The evaluation-plan task is complete once this document is saved. The benchmark and measured results will be completed during implementation.

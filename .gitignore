@@ -8,3 +8,4 @@ chroma_db/
 .coverage
 dist/
 build/
+evals/reports/

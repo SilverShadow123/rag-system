@@ -210,3 +210,4 @@ Before public deployment:
 ---
 
 **Design principle:** Start with the smallest reliable RAG baseline, keep components replaceable, and add complexity only when evaluation shows a clear benefit.
+python -m streamlit run frontend/streamlit_app.py

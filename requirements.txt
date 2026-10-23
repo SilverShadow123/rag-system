@@ -18,3 +18,4 @@ pytest
 langchain-huggingface
 python-dotenv
 langchain-openrouter
+pandas
