@@ -9,3 +9,5 @@ chroma_db/
 dist/
 build/
 evals/reports/
+docs/
+evals

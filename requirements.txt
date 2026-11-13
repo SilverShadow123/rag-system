@@ -19,3 +19,7 @@ langchain-huggingface
 python-dotenv
 langchain-openrouter
 pandas
+pydantic
+docling
+docling-core
+pillow
