@@ -13,3 +13,6 @@ def recursive_splitter(documents: list[Document]) -> list[Document]:
 def split_records(
     records: list[IngestionRecord],
 ) -> list[IngestionRecord]:
+    raise NotImplementedError(
+        "Record-aware splitting has not been implemented yet."
+    )
