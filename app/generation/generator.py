@@ -38,18 +38,27 @@ Context:
     ("human", "{question}"),
 ])
 
-def generate_answer(question: str, documents: list[Document],) -> str:
+def generate_answer(
+    question: str,
+    documents: list[Document],
+) -> str:
+
     if not documents:
         return "I don't have enough information in the provided documents."
+
     context = "\n\n".join(
         f"Source: {doc.metadata.get('source', 'Unknown')}\n"
-        f"Page: {doc.metadata.get('page', 'Unknown')}\n"
+        f"Page: {doc.metadata.get('page_number', doc.metadata.get('page', 'Unknown'))}\n"
         f"{doc.page_content}"
         for doc in documents
     )
 
     chain = prompt | llm
-    response = chain.invoke({"context": context, "question": question})
+
+    response = chain.invoke({
+        "context": context,
+        "question": question,
+    })
 
     return str(response.content)
 

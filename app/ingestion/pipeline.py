@@ -2,11 +2,11 @@ import os
 from functools import lru_cache
 from pathlib import Path
 from app.ingestion.loader import load_documents
-from app.ingestion.splitter import recursive_splitter
+from app.ingestion.splitter import recursive_splitter, split_records
 from langchain_core.documents import Document
 from dotenv import load_dotenv
 from langchain_openrouter import ChatOpenRouter
-
+from app.retrieval.vector_store import add_ingestion_records
 from app.ingestion.image_captioner import ImageCaptioner
 from app.ingestion.docling_parser import DoclingParser
 from app.ingestion.image_extractor import ImageExtractor
@@ -70,8 +70,22 @@ def ingest_multimodal_pdf(
 
         records.extend(image_records)
 
-    return records
+    chunked_records = split_records(records)
 
+    return chunked_records
+
+def ingest_and_index_multimodal_pdf(
+    file_path: str,
+) -> int:
+
+    records = ingest_multimodal_pdf(file_path)
+
+    if not records:
+        raise ValueError("No searchable records were extracted.")
+
+    indexed_count = add_ingestion_records(records)
+
+    return indexed_count
 
 def ingest_documents(folder_path: str) -> list[Document]:
     documents = load_documents(folder_path)
