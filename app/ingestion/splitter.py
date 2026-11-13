@@ -1,10 +1,21 @@
 
+import logging
+import re
 from collections import defaultdict
 
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_core.documents import Document
 
-from app.ingestion.records import IngestionRecord
+from app.ingestion.records import (
+    IngestionRecord,
+    make_record_id,
+)
+
+
+logger = logging.getLogger(__name__)
+
+CHUNK_SIZE = 1000
+CHUNK_OVERLAP = 150
 
 
 def recursive_splitter(
@@ -14,7 +25,6 @@ def recursive_splitter(
     if not documents:
         return []
 
-    # Group pages belonging to the same PDF.
     grouped_documents = defaultdict(list)
 
     for index, document in enumerate(documents):
@@ -30,8 +40,8 @@ def recursive_splitter(
         grouped_documents[key].append(document)
 
     splitter = RecursiveCharacterTextSplitter(
-        chunk_size=1000,
-        chunk_overlap=150,
+        chunk_size=CHUNK_SIZE,
+        chunk_overlap=CHUNK_OVERLAP,
         separators=["\n\n", "\n", " ", ""],
         add_start_index=True,
     )
@@ -40,7 +50,6 @@ def recursive_splitter(
 
     for pages in grouped_documents.values():
 
-        # Sort pages in their original PDF order.
         pages.sort(
             key=lambda page: page.metadata.get("page", 0)
         )
@@ -74,7 +83,6 @@ def recursive_splitter(
         if not page_contents:
             continue
 
-        # Combine all pages belonging to this PDF.
         combined_content = page_separator.join(page_contents)
 
         combined_document = Document(
@@ -82,12 +90,10 @@ def recursive_splitter(
             metadata=dict(pages[0].metadata),
         )
 
-        # Split the combined document.
         chunks = splitter.split_documents(
             [combined_document]
         )
 
-        # Restore the page number corresponding to each chunk's start.
         for chunk in chunks:
 
             start_index = chunk.metadata["start_index"]
@@ -108,9 +114,169 @@ def recursive_splitter(
     return all_chunks
 
 
+def _create_chunk_record(
+    record: IngestionRecord,
+    content: str,
+    chunk_index: int,
+) -> IngestionRecord:
+
+    data = record.model_dump()
+
+    data.update({
+        "record_id": make_record_id(
+            record.document_id,
+            record.page_number,
+            record.element_type,
+            record.element_index,
+            chunk_index,
+        ),
+        "chunk_index": chunk_index,
+        "content": content,
+    })
+
+    return IngestionRecord.model_validate(data)
+
+
+def _split_text_record(
+    record: IngestionRecord,
+    splitter: RecursiveCharacterTextSplitter,
+) -> list[IngestionRecord]:
+
+    if len(record.content) <= CHUNK_SIZE:
+        return [record]
+
+    chunks = splitter.split_text(record.content)
+
+    return [
+        _create_chunk_record(
+            record=record,
+            content=content,
+            chunk_index=index,
+        )
+        for index, content in enumerate(chunks)
+        if content.strip()
+    ]
+
+
+def _is_markdown_separator(line: str) -> bool:
+
+    cells = line.strip().strip("|").split("|")
+
+    return bool(cells) and all(
+        re.fullmatch(r"\s*:?-{3,}:?\s*", cell)
+        for cell in cells
+    )
+
+
+def _split_table_record(
+    record: IngestionRecord,
+) -> list[IngestionRecord]:
+
+    if len(record.content) <= CHUNK_SIZE:
+        return [record]
+
+    lines = [
+        line.strip()
+        for line in record.content.splitlines()
+        if line.strip()
+    ]
+
+    # A Markdown table needs a header and separator row.
+    if len(lines) < 2 or not _is_markdown_separator(lines[1]):
+
+        logger.warning(
+            "Cannot safely split non-standard Markdown table: %s",
+            record.record_id,
+        )
+
+        return [record]
+
+    header = lines[:2]
+    data_rows = lines[2:]
+
+    if not data_rows:
+        return [record]
+
+    table_chunks = []
+    current_rows = []
+
+    for row in data_rows:
+
+        candidate_content = "\n".join(
+            header + current_rows + [row]
+        )
+
+        if len(candidate_content) > CHUNK_SIZE and current_rows:
+
+            table_chunks.append(
+                "\n".join(header + current_rows)
+            )
+
+            current_rows = [row]
+
+        else:
+            current_rows.append(row)
+
+        # A single row may exceed CHUNK_SIZE.
+        # Keep it intact rather than destroying its structure.
+        if len("\n".join(header + current_rows)) > CHUNK_SIZE:
+            logger.warning(
+                "A table row exceeds chunk size: %s",
+                record.record_id,
+            )
+
+    if current_rows:
+        table_chunks.append(
+            "\n".join(header + current_rows)
+        )
+
+    return [
+        _create_chunk_record(
+            record=record,
+            content=content,
+            chunk_index=index,
+        )
+        for index, content in enumerate(table_chunks)
+    ]
+
+
 def split_records(
     records: list[IngestionRecord],
 ) -> list[IngestionRecord]:
-    raise NotImplementedError(
-        "Record-aware splitting has not been implemented yet."
+
+    if not records:
+        return []
+
+    text_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=CHUNK_SIZE,
+        chunk_overlap=CHUNK_OVERLAP,
+        separators=["\n\n", "\n", " ", ""],
     )
+
+    chunked_records = []
+
+    for record in records:
+
+        if record.element_type == "text":
+
+            chunks = _split_text_record(
+                record,
+                text_splitter,
+            )
+
+        elif record.element_type == "table":
+
+            chunks = _split_table_record(record)
+
+        elif record.element_type == "image_description":
+
+            chunks = [record]
+
+        else:
+            raise ValueError(
+                f"Unsupported record type: {record.element_type}"
+            )
+
+        chunked_records.extend(chunks)
+
+    return chunked_records
