@@ -32,7 +32,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v7
         with:
-          python-version: "3.14"
+          python-version: "3.12"
           cache: pip
           cache-dependency-path: requirements.txt
 
@@ -50,4 +50,7 @@ jobs:
           python -m pytest \
             tests/test_records.py \
             tests/test_splitter.py \
+            tests/test_record_splitter.py \
+            tests/test_vector_store_records.py \
+            tests/test_document_manager.py \
             -v
