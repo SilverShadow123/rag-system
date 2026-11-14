@@ -1,3 +1,4 @@
+
 from app.ingestion.records import IngestionRecord
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_core.documents import Document
@@ -37,6 +38,7 @@ def create_retriever(vectorstore: Chroma, k: int = 4):
         search_kwargs={"k": k},
     )
 
+
 def add_ingestion_records(
     records: list[IngestionRecord],
 ) -> int:
@@ -57,7 +59,19 @@ def add_ingestion_records(
         for record in records
     ]
 
+    document_ids = {
+        record.document_id
+        for record in records
+    }
+
     vector_store = load_vector_store()
+
+    for document_id in document_ids:
+        vector_store.delete(
+            where={
+                "document_id": document_id,
+            }
+        )
 
     vector_store.add_documents(
         documents=documents,

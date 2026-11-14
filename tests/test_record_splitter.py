@@ -262,3 +262,147 @@ def test_multiple_record_types_are_processed():
         "table",
         "image_description",
     ]
+
+def test_adjacent_text_records_are_merged():
+
+    first = make_record(
+        record_id="doc123-p1-text-e0-c0",
+        element_index=0,
+        content="V. EXPERIMENTAL RESULTS",
+    )
+
+    second = make_record(
+        record_id="doc123-p1-text-e1-c0",
+        element_index=1,
+        content="We evaluated the proposed model.",
+    )
+
+    chunks = split_records([first, second])
+
+    assert len(chunks) == 1
+
+    assert chunks[0].content == (
+        "V. EXPERIMENTAL RESULTS\n\n"
+        "We evaluated the proposed model."
+    )
+
+    assert chunks[0].element_index == 0
+
+    assert chunks[0].record_id == make_record_id(
+        "doc123", 1, "text", 0, 0
+    )
+
+
+def test_text_records_from_different_pages_are_not_merged():
+
+    first = make_record(
+        record_id="doc123-p1-text-e0-c0",
+        element_index=0,
+        page_number=1,
+        content="Page one content.",
+    )
+
+    second = make_record(
+        record_id="doc123-p2-text-e0-c0",
+        element_index=0,
+        page_number=2,
+        content="Page two content.",
+    )
+
+    chunks = split_records([first, second])
+
+    assert len(chunks) == 2
+
+    assert chunks[0].page_number == 1
+    assert chunks[1].page_number == 2
+
+
+def test_table_breaks_adjacent_text_groups():
+
+    first = make_record(
+        record_id="doc123-p1-text-e0-c0",
+        element_index=0,
+        content="Introduction to the experiment.",
+    )
+
+    table = make_record(
+        record_id="doc123-p1-table-e0-c0",
+        element_type="table",
+        element_index=0,
+        content="| Model | Score |\n|---|---|\n| A | 90 |",
+    )
+
+    second = make_record(
+        record_id="doc123-p1-text-e1-c0",
+        element_index=1,
+        content="Explanation after the table.",
+    )
+
+    chunks = split_records([first, table, second])
+
+    assert len(chunks) == 3
+
+    assert [chunk.element_type for chunk in chunks] == [
+        "text",
+        "table",
+        "text",
+    ]
+
+
+def test_merged_text_records_are_split_when_too_large():
+
+    first = make_record(
+        record_id="doc123-p1-text-e0-c0",
+        element_index=0,
+        content="alpha " * 150,
+    )
+
+    second = make_record(
+        record_id="doc123-p1-text-e1-c0",
+        element_index=1,
+        content="beta " * 150,
+    )
+
+    chunks = split_records([first, second])
+
+    assert len(chunks) > 1
+
+    assert all(
+        len(chunk.content) <= CHUNK_SIZE
+        for chunk in chunks
+    )
+
+    assert [
+        chunk.chunk_index for chunk in chunks
+    ] == list(range(len(chunks)))
+
+
+def test_text_merging_is_deterministic():
+
+    records = [
+        make_record(
+            record_id="doc123-p1-text-e0-c0",
+            element_index=0,
+            content="Heading.",
+        ),
+        make_record(
+            record_id="doc123-p1-text-e1-c0",
+            element_index=1,
+            content="Paragraph.",
+        ),
+    ]
+
+    first_run = split_records(records)
+    second_run = split_records(records)
+
+    assert [
+        record.record_id for record in first_run
+    ] == [
+        record.record_id for record in second_run
+    ]
+
+    assert [
+        record.content for record in first_run
+    ] == [
+        record.content for record in second_run
+    ]

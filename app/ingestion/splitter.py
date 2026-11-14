@@ -136,6 +136,76 @@ def _create_chunk_record(
 
     return IngestionRecord.model_validate(data)
 
+def _merge_adjacent_text_records(
+    records: list[IngestionRecord],
+) -> list[IngestionRecord]:
+
+    merged_records = []
+    pending_text_records = []
+
+    def flush_text_group():
+        nonlocal pending_text_records
+
+        if not pending_text_records:
+            return
+
+        first_record = pending_text_records[0]
+
+        if len(pending_text_records) == 1:
+            merged_records.append(first_record)
+        else:
+            combined_content = "\n\n".join(
+                record.content
+                for record in pending_text_records
+            )
+
+            merged_record = first_record.model_copy(
+                update={
+                    "record_id": make_record_id(
+                        first_record.document_id,
+                        first_record.page_number,
+                        "text",
+                        first_record.element_index,
+                        0,
+                    ),
+                    "chunk_index": 0,
+                    "content": combined_content,
+                }
+            )
+
+            merged_records.append(merged_record)
+
+        pending_text_records = []
+
+    for record in records:
+
+        # Tables and image descriptions break text groups.
+        if record.element_type != "text":
+            flush_text_group()
+            merged_records.append(record)
+            continue
+
+        # Only merge records from the same page and document.
+        if pending_text_records:
+
+            previous = pending_text_records[-1]
+
+            same_page = (
+                previous.document_id == record.document_id
+                and previous.source == record.source
+                and previous.page_number == record.page_number
+                and previous.extractor == record.extractor
+            )
+
+            if not same_page:
+                flush_text_group()
+
+        pending_text_records.append(record)
+
+    flush_text_group()
+
+    return merged_records
+
 
 def _split_text_record(
     record: IngestionRecord,
@@ -246,6 +316,9 @@ def split_records(
 
     if not records:
         return []
+
+
+    records = _merge_adjacent_text_records(records)
 
     text_splitter = RecursiveCharacterTextSplitter(
         chunk_size=CHUNK_SIZE,
