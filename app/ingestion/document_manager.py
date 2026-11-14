@@ -1,53 +1,95 @@
+
 import logging
+import shutil
 from pathlib import Path
 
-from app.ingestion.loader import compute_document_id, load_pdf
-from app.ingestion.splitter import recursive_splitter
+from app.ingestion.loader import compute_document_id
+from app.ingestion.pipeline import ingest_and_index_multimodal_pdf
 from app.retrieval.vector_store import load_vector_store
+
 
 logger = logging.getLogger(__name__)
 
+IMAGE_ROOT = Path("data/images")
+
 
 def add_document(file_path: str) -> int:
+    """
+    Ingest a PDF through the multimodal pipeline and index its records.
+    """
+
     path = Path(file_path)
 
-    if not path.is_file() or path.suffix.lower() != ".pdf":
-        raise ValueError("Provide a valid PDF file path.")
+    if not path.is_file():
+        raise FileNotFoundError(
+            f"PDF not found: {path}"
+        )
+
+    if path.suffix.lower() != ".pdf":
+        raise ValueError(
+            "Only PDF files are supported."
+        )
 
     try:
-        pages = load_pdf(path)
-    except Exception as error:
-        raise ValueError(f"Failed to extract text from {path.name}: {error}") from error
+        indexed_count = ingest_and_index_multimodal_pdf(
+            str(path)
+        )
 
-    chunks = recursive_splitter(pages)
+    except Exception:
+        logger.exception(
+            "Multimodal ingestion failed: %s",
+            path.name,
+        )
+        raise
 
-    if not chunks:
-        raise ValueError("No text could be extracted from this PDF.")
-
-    # load_pdf attaches the document_id to every page it returns.
-    document_id = pages[0].metadata["document_id"]
-
-    vector_store = load_vector_store()
-
-    # Make re-ingestion repeatable: drop previous chunks before adding new ones.
-    vector_store.delete(where={"document_id": document_id})
-
-    vector_store.add_documents(
-        chunks,
-        ids=[f"{document_id}-{index:04d}" for index in range(len(chunks))],
+    logger.info(
+        "Successfully indexed %d records from %s",
+        indexed_count,
+        path.name,
     )
 
-    return len(chunks)
+    return indexed_count
 
 
 def delete_document(file_path: str) -> None:
+    """
+    Delete a PDF's indexed records, extracted images, and original file.
+    """
+
     path = Path(file_path)
+
+    if not path.is_file():
+        raise FileNotFoundError(
+            f"PDF not found: {path}"
+        )
+
+    if path.suffix.lower() != ".pdf":
+        raise ValueError(
+            "Only PDF files are supported."
+        )
+
+    # Calculate the content-based document ID before deleting the PDF.
+    document_id = compute_document_id(path)
+
+    # Remove all ChromaDB records belonging to this PDF.
     vector_store = load_vector_store()
 
-    if path.is_file():
-        vector_store.delete(where={"document_id": compute_document_id(path)})
+    vector_store.delete(
+        where={
+            "document_id": document_id,
+        }
+    )
 
-    vector_store.delete(where={"source": path.name})
+    # Remove extracted image assets belonging to this PDF.
+    document_image_dir = IMAGE_ROOT / document_id
 
-    if path.is_file():
-        path.unlink()
+    if document_image_dir.exists():
+        shutil.rmtree(document_image_dir)
+
+    # Remove the original PDF.
+    path.unlink()
+
+    logger.info(
+        "Deleted document and indexed assets: %s",
+        path.name,
+    )

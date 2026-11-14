@@ -1,11 +1,9 @@
-
 import streamlit as st
 from pathlib import Path
 
 from app.retrieval.vector_store import load_vector_store, create_retriever
 from app.generation.generator import generate_answer
 from app.ingestion.document_manager import add_document, delete_document
-
 
 st.set_page_config(
     page_title="Naive RAG Chatbot",
@@ -25,10 +23,8 @@ def load_retriever():
 
 retriever = load_retriever()
 
-
 if "messages" not in st.session_state:
     st.session_state.messages = []
-
 
 with st.sidebar:
     st.subheader("Settings")
@@ -104,7 +100,6 @@ with st.sidebar:
     else:
         st.caption("No PDF files found in docs/.")
 
-
 # Display previous messages
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
@@ -112,7 +107,7 @@ for message in st.session_state.messages:
 
         if message["role"] == "assistant" and message.get("sources"):
             with st.expander(
-                f"Retrieved source chunks ({len(message['sources'])})"
+                    f"Retrieved source chunks ({len(message['sources'])})"
             ):
                 for i, source in enumerate(message["sources"], start=1):
                     st.markdown(f"**Chunk {i}**")
@@ -122,7 +117,6 @@ for message in st.session_state.messages:
                     )
                     st.write(source["content"])
                     st.divider()
-
 
 # Chat input
 if question := st.chat_input("Ask something about your documents..."):
@@ -147,7 +141,10 @@ if question := st.chat_input("Ask something about your documents..."):
                 sources = [
                     {
                         "source": doc.metadata.get("source", "Unknown"),
-                        "page": doc.metadata.get("page", "Unknown"),
+                        "page": doc.metadata.get(
+                            "page_number",
+                            doc.metadata.get("page", "Unknown"),
+                        ),
                         "content": doc.page_content,
                     }
                     for doc in documents
@@ -164,7 +161,7 @@ if question := st.chat_input("Ask something about your documents..."):
 
         if sources:
             with st.expander(
-                f"Retrieved source chunks ({len(sources)})"
+                    f"Retrieved source chunks ({len(sources)})"
             ):
                 for i, source in enumerate(sources, start=1):
                     st.markdown(f"**Chunk {i}**")
