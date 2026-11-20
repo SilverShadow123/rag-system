@@ -1,15 +1,15 @@
-
 from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
 from collections.abc import Mapping, Sequence
 
 from rag_eval.core.schemas import (
-    BenchmarkCase,
     GenerationResult,
     IngestionResult,
+    MetricResult,
     QueryResult,
     RetrievalResult,
     RetrievedItem,
+    BenchmarkCase,
 )
 
 
@@ -74,4 +74,17 @@ class RAGAdapter(Protocol):
         request_id: str,
         options: Options = None,
     ) -> QueryResult:
+        ...
+
+
+@runtime_checkable
+class Metric(Protocol):
+
+    name: str
+
+    def evaluate(
+        self,
+        cases: Sequence[BenchmarkCase],
+        results: Sequence[QueryResult],
+    ) -> list[MetricResult]:
         ...

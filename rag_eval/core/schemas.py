@@ -205,14 +205,8 @@ class GenerationResult(ContractModel):
 
 
 class QueryResult(ContractModel):
-    """
-    Normalized end-to-end response from any RAG system.
-
-    retrieved_items=None means retrieval information is unavailable.
-    retrieved_items=[] means retrieval ran but returned no results.
-    """
-
     request_id: str = Field(min_length=1)
+    case_id: str | None = None
 
     answer: str | None = None
 
@@ -259,3 +253,39 @@ class MetricResult(ContractModel):
     details: dict[str, Any] = Field(
         default_factory=dict
     )
+class EvaluationReport(ContractModel):
+
+    experiment_id: str
+    adapter_name: str
+
+    total_cases: int = Field(ge=0)
+    successful_cases: int = Field(ge=0)
+    failed_cases: int = Field(ge=0)
+
+    query_results: list[QueryResult] = Field(
+        default_factory=list
+    )
+
+    metric_results: list[MetricResult] = Field(
+        default_factory=list
+    )
+
+    status: Literal[
+        "success",
+        "partial",
+        "error",
+    ]
+
+    metadata: dict[str, Any] = Field(
+        default_factory=dict
+    )
+
+    @model_validator(mode="after")
+    def validate_case_counts(self):
+
+        if self.successful_cases + self.failed_cases != self.total_cases:
+            raise ValueError(
+                "Successful and failed cases must equal total cases."
+            )
+
+        return self

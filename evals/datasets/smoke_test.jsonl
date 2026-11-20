@@ -1,0 +1,29 @@
+{
+  "case_id": "q001",
+  "question": "What accuracy did Model A achieve?",
+  "expected_answer": "Model A achieved 92% accuracy.",
+  "answerable": true,
+  "expected_evidence": [
+    {
+      "source_id": "research-paper-001",
+      "source_name": "research.pdf",
+      "page_number": 9,
+      "element_type": "table"
+    }
+  ],
+  "tags": [
+    "smoke-test",
+    "table"
+  ]
+}
+{
+  "case_id": "q002",
+  "question": "What was yesterday's weather?",
+  "expected_answer": "The document does not provide this information.",
+  "answerable": false,
+  "expected_evidence": [],
+  "tags": [
+    "smoke-test",
+    "unanswerable"
+  ]
+}
